@@ -1,59 +1,54 @@
-# Intelligent Resume Screening System
+# Job Match Finder
 
-A professional resume screening system built with Flask, PostgreSQL, NLP, and ML.
+An intelligent job matching platform that helps candidates discover how well they match with available jobs. Upload your resume and instantly see match scores across all positions.
 
 ## Features
 
 - **Resume Upload & Parsing**: Support for PDF, DOCX, and TXT formats
-- **NLP Extraction**: Extract skills, education, and experience from resumes
-- **Intelligent Matching**: Match resumes against job descriptions using ML
-- **Multi-Signal Scoring**: Skills (40%), Experience (30%), Education (10%), Semantic (20%)
-- **Candidate Ranking**: Rank candidates by match score
-- **Dashboard**: Analytics and recent activity for recruiters
+- **NLP Extraction**: Automatically extract skills, education, and experience
+- **Smart Matching**: Multi-signal scoring against job descriptions
+- **Instant Auto-Match**: Match your resume against all jobs in one click
+- **Match Scores**: See percentage match with breakdown (Skills, Experience, Education, Semantic)
+- **Skill Gap Analysis**: View matched vs missing skills for each job
+- **Job Role Classification**: AI classifies your resume into best-fit job roles
+- **Search & Filter**: Search jobs by title, company, skills, or location
+- **Dashboard**: Stats, score breakdown, recent matches, top skills
 
 ## Tech Stack
 
-- **Backend**: Flask + SQLAlchemy + PostgreSQL
+- **Backend**: Flask + SQLAlchemy + MySQL
 - **NLP**: spaCy + Custom extractors
-- **ML**: scikit-learn (TF-IDF + Cosine Similarity)
+- **ML**: scikit-learn (TF-IDF + Cosine Similarity) + RapidFuzz (fuzzy matching)
 - **Auth**: JWT Authentication
-- **Frontend**: Bootstrap + Jinja2 Templates
+- **Frontend**: Bootstrap 5 + Vanilla JS
 
-## Project Structure
+## Matching Algorithm
 
-```
-intelligent_resume_screening/
-├── app/
-│   ├── __init__.py          # Flask app factory
-│   ├── config.py            # Configuration
-│   ├── extensions.py        # Flask extensions
-│   ├── models/              # SQLAlchemy models
-│   ├── routes/              # Flask Blueprints
-│   ├── services/            # Business logic
-│   ├── parsers/             # Resume file parsing
-│   ├── extractors/          # NLP extraction
-│   ├── ml/                  # ML matching
-│   └── templates/           # Jinja2 templates
-├── data/                    # Skill taxonomy
-├── uploads/                 # Resume storage
-├── requirements.txt
-└── run.py
-```
+Multi-signal scoring approach:
 
-## Setup Instructions
+| Signal | Weight | How it works |
+|--------|--------|-------------|
+| Skills | 40% | Exact + fuzzy matching of required skills |
+| Experience | 30% | Years of experience comparison |
+| Education | 10% | Degree level comparison |
+| Semantic | 20% | TF-IDF cosine similarity of resume vs job description |
 
-### 1. Prerequisites
+## Setup
 
+### Prerequisites
 - Python 3.9+
-- PostgreSQL
-- pip
+- MySQL
 
-### 2. Installation
-
+### Installation
 ```bash
+# Clone the repo
+git clone https://github.com/RakshithaReddy28/intelligent-resume-screening.git
+cd intelligent-resume-screening
+
 # Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Mac/Linux
 
 # Install dependencies
 pip install -r requirements.txt
@@ -62,72 +57,49 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### 3. Database Setup
-
+### Database Setup
 ```bash
-# Create PostgreSQL database
-createdb resume_screening_dev
+# Create MySQL database
+mysql -u root -p -e "CREATE DATABASE resume_screening_dev;"
 
-# Set environment variable
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/resume_screening_dev
+# Update config.py with your MySQL credentials, then:
+python seed_jobs.py    # Seeds 10 sample jobs
 
-# Initialize database
-python -c "from app import create_app; from app.extensions import db; app = create_app(); app.app_context().push(); db.create_all()"
-```
-
-### 4. Configuration
-
-Copy `.env.example` to `.env` and update the values:
-
-```bash
-cp .env.example .env
-```
-
-### 5. Run the Application
-
-```bash
+# Run the app
 python run.py
 ```
 
-The application will be available at `http://localhost:5000`
+Visit **http://127.0.0.1:5000**
 
-## API Endpoints
+## How It Works
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
+1. **Register** as a candidate
+2. **Upload your resume** (PDF/DOCX/TXT)
+3. System **extracts** your skills, education, and experience
+4. Click **Auto-Match** to match against all 10 jobs instantly
+5. **Browse Jobs** to see match %, matched skills, and missing skills
+6. **View Dashboard** for stats and score breakdown
 
-### Resumes
-- `POST /api/resumes` - Upload resume
-- `GET /api/resumes` - List resumes
-- `GET /api/resumes/<id>` - Get resume details
-- `DELETE /api/resumes/<id>` - Delete resume
+## Project Structure
 
-### Jobs
-- `POST /api/jobs` - Create job (recruiter only)
-- `GET /api/jobs` - List jobs
-- `GET /api/jobs/<id>` - Get job details
-- `PUT /api/jobs/<id>` - Update job
-- `DELETE /api/jobs/<id>` - Delete job
-
-### Matching
-- `POST /api/matches/job/<job_id>` - Run matching
-- `GET /api/matches/job/<job_id>` - Get match results
-- `GET /api/matches/<match_id>` - Get match details
-
-### Dashboard
-- `GET /api/dashboard/stats` - Get statistics
-- `GET /api/dashboard/recent-activity` - Get recent activity
-
-## Matching Algorithm
-
-The system uses a multi-signal scoring approach:
-
-1. **Skill Matching (40%)**: Exact and fuzzy matching of skills
-2. **Experience Matching (30%)**: Years of experience comparison
-3. **Education Matching (10%)**: Degree level comparison
-4. **Semantic Similarity (20%)**: TF-IDF + Cosine similarity
+```
+├── app/
+│   ├── __init__.py          # Flask app factory
+│   ├── config.py            # MySQL configuration
+│   ├── extensions.py        # Flask extensions
+│   ├── models/              # SQLAlchemy models
+│   ├── routes/              # API + page routes
+│   ├── services/            # Business logic
+│   ├── parsers/             # Resume file parsing (PDF/DOCX/TXT)
+│   ├── extractors/          # NLP entity extraction
+│   ├── ml/                  # ML matching + classification
+│   └── templates/           # Frontend templates
+├── data/
+│   └── skills_taxonomy.json # Skill database
+├── requirements.txt
+├── seed_jobs.py             # Sample job seeder
+└── run.py                   # Entry point
+```
 
 ## License
 
