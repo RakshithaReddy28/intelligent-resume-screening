@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Job Details - Job Match Finder{% endblock %}
+
+{% block content %}
+<div id="auth-check" class="text-center py-5" style="display:none;">
+    <h4>Please <a href="/login">login</a> to view job details.</h4>
+</div>
+
+<div id="job-content" style="display:none;">
+    <div id="job-loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    <div id="job-detail" style="display:none;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    var jobId = {{ job_id }};
+
+    (function() {
+        var token = getToken();
+        var user = getUser();
+        if (!token || !user) {
+            document.getElementById('auth-check').style.display = 'block';
+            return;
+        }
+        document.getElementById('job-content').style.display = 'block';
+        loadJob();
+    })();
+
+    async function loadJob() {
+        try {
+            var token = getToken();
+            var headers = { 'Authorization': 'Bearer ' + token };
+
+            var [jobResp, matchResp] = await Promise.all([
+                fetch('/api/jobs/' + jobId + '/detail', { headers: headers }),
+                fetch('/api/matches/my-matches', { headers: headers })
+            ]);
+
+            var job = await jobResp.json();
+            var matchesData = await matchResp.json();
+            var match = (matchesData.matches || []).find(function(m) { return m.job.id === jobId; });
+
+            document.getElementById('job-loading').style.display = 'none';
+            document.getElementById('job-detail').style.display = 'block';
+            document.getElementById('job-detail').innerHTML = renderJob(job, match);
+        } catch (err) {
+            document.getElementById('job-detail').innerHTML = '<p class="text-danger">Error: ' + err.message + '</p>';
+            document.getElementById('job-loading').style.display = 'none';
+            document.getElementById('job-detail').style.display = 'block';
+        }
+    }
+
+    function renderJob(job, match) {
+        var score = match ? match.scores.overall : null;
+
+        var requiredSkills = (job.skills || []).map(function(s) {
+            var isMatched = match && (match.matched_skills || []).some(function(ms) {
+                return (ms.job_skill || ms) === s.name;
+            });
+            var cls = isMatched ? 'skill-matched' : 'skill-missing';
+            var icon = isMatched ? '<i class="fas fa-check me-1"></i>' : '<i class="fas fa-times me-1"></i>';
+            return '<span class="skill-tag ' + cls + '">' + icon + s.name + '</span>';
+        }).join('');
+
+        var scoreSection = '';
+        if (score !== null) {
+            var mc = scoreColor(score);
+            scoreSection = '<div class="card mb-4 border-' + mc + '">' +
+                '<div class="card-body text-center">' +
+                '<h3 class="text-' + mc + '">' + formatPercent(score) + '</h3>' +
+                '<p class="mb-0"><strong>' + scoreLabel(score) + '</strong></p>' +
+                '<div class="progress mt-3" style="height: 12px;">' +
+                '<div class="progress-bar bg-' + mc + '" style="width: ' + (score * 100) + '%"></div>' +
+                '</div></div></div>' +
+
+                '<div class="row mb-4">' +
+                '<div class="col-md-3"><div class="card text-center"><div class="card-body py-2">' +
+                '<small class="text-muted">Skills</small><br><strong>' + formatPercent(match.scores.skill) + '</strong></div></div></div>' +
+                '<div class="col-md-3"><div class="card text-center"><div class="card-body py-2">' +
+                '<small class="text-muted">Experience</small><br><strong>' + formatPercent(match.scores.experience) + '</strong></div></div></div>' +
+                '<div class="col-md-3"><div class="card text-center"><div class="card-body py-2">' +
+                '<small class="text-muted">Education</small><br><strong>' + formatPercent(match.scores.education) + '</strong></div></div></div>' +
+                '<div class="col-md-3"><div class="card text-center"><div class="card-body py-2">' +
+                '<small class="text-muted">Semantic</small><br><strong>' + formatPercent(match.scores.semantic) + '</strong></div></div></div>' +
+                '</div>';
+        } else {
+            scoreSection = '<div class="alert alert-info">Upload your resume and auto-match to see your match score for this job.</div>';
+        }
+
+        var matchDetails = '';
+        if (match) {
+            var matchedHtml = (match.matched_skills || []).map(function(s) {
+                return '<span class="skill-tag skill-matched"><i class="fas fa-check me-1"></i>' + (s.job_skill || s) + '</span>';
+            }).join('');
+            var missingHtml = (match.missing_skills || []).map(function(s) {
+                return '<span class="skill-tag skill-missing"><i class="fas fa-times me-1"></i>' + s + '</span>';
+            }).join('');
+
+            matchDetails = '<div class="card mb-4">' +
+                '<div class="card-header"><i class="fas fa-chart-bar me-2"></i>Match Details</div>' +
+                '<div class="card-body">' +
+                (matchedHtml ? '<h6 class="text-success">Skills You Have</h6><div class="mb-3">' + matchedHtml + '</div>' : '') +
+                (missingHtml ? '<h6 class="text-danger">Skills You\'re Missing</h6><div class="mb-3">' + missingHtml + '</div>' : '') +
+                (match.explanation ? '<h6>Explanation</h6><p class="text-muted">' + match.explanation + '</p>' : '') +
+                '</div></div>';
+        }
+
+        return '<a href="/jobs" class="btn btn-outline-secondary mb-3"><i class="fas fa-arrow-left me-1"></i>Back to Jobs</a>' +
+            '<h2>' + job.title + '</h2>' +
+            '<p class="text-muted mb-3"><i class="fas fa-building me-1"></i>' + job.company +
+            (job.location ? ' | <i class="fas fa-map-marker-alt me-1"></i>' + job.location : '') +
+            ' | <i class="fas fa-briefcase me-1"></i>' + (job.job_type || 'Full-time') + '</p>' +
+
+            scoreSection +
+
+            '<div class="card mb-4">' +
+            '<div class="card-header"><i class="fas fa-info-circle me-2"></i>Job Description</div>' +
+            '<div class="card-body"><p>' + (job.description || 'No description provided.') + '</p></div>' +
+            '</div>' +
+
+            '<div class="card mb-4">' +
+            '<div class="card-header"><i class="fas fa-cogs me-2"></i>Required Skills</div>' +
+            '<div class="card-body">' + requiredSkills + '</div>' +
+            '</div>' +
+
+            '<div class="row mb-4">' +
+            '<div class="col-md-6"><div class="card"><div class="card-body text-center">' +
+            '<i class="fas fa-clock fa-2x text-primary mb-2"></i>' +
+            '<h6>Experience Required</h6>' +
+            '<p class="mb-0">' + (job.experience_min_years || 0) + ' - ' + (job.experience_max_years || '?') + ' years</p>' +
+            '</div></div></div>' +
+            '<div class="col-md-6"><div class="card"><div class="card-body text-center">' +
+            '<i class="fas fa-graduation-cap fa-2x text-info mb-2"></i>' +
+            '<h6>Education Required</h6>' +
+            '<p class="mb-0 text-capitalize">' + (job.education_level || 'Any') + '</p>' +
+            '</div></div></div>' +
+            '</div>' +
+
+            matchDetails;
+    }
+</script>
+{% endblock %}

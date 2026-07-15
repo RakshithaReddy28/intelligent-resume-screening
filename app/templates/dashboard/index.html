@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Job Match Finder{% endblock %}
+
+{% block content %}
+<div id="auth-check" class="text-center py-5" style="display:none;">
+    <div class="py-5">
+        <i class="fas fa-bullseye fa-4x text-primary mb-4"></i>
+        <h2>Welcome to Job Match Finder</h2>
+        <p class="text-muted mb-4">Upload your resume and discover how well you match with available jobs</p>
+        <a href="/login" class="btn btn-primary btn-lg me-2">Login</a>
+        <a href="/register" class="btn btn-outline-primary btn-lg">Register</a>
+    </div>
+</div>
+
+<div id="dashboard-content" style="display:none;">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="fas fa-tachometer-alt me-2"></i>My Dashboard</h2>
+            <p class="text-muted" id="welcome-msg"></p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card bg-primary text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-briefcase fa-2x mb-2 opacity-75"></i>
+                    <h6 class="card-title">Jobs Available</h6>
+                    <h2 id="stat-jobs">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x mb-2 opacity-75"></i>
+                    <h6 class="card-title">Best Match</h6>
+                    <h2 id="stat-best">0%</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-info text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x mb-2 opacity-75"></i>
+                    <h6 class="card-title">Avg Match</h6>
+                    <h2 id="stat-avg">0%</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card bg-warning text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-alt fa-2x mb-2 opacity-75"></i>
+                    <h6 class="card-title">Resumes</h6>
+                    <h2 id="stat-resumes">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-trophy me-2"></i>Score Breakdown</div>
+                <div class="card-body">
+                    <div class="row text-center" id="score-breakdown">
+                        <div class="col">
+                            <div class="display-6 text-success" id="bk-excellent">0</div>
+                            <small class="text-muted">Excellent (75%+)</small>
+                        </div>
+                        <div class="col">
+                            <div class="display-6 text-primary" id="bk-good">0</div>
+                            <small class="text-muted">Good (55-75%)</small>
+                        </div>
+                        <div class="col">
+                            <div class="display-6 text-warning" id="bk-average">0</div>
+                            <small class="text-muted">Moderate (40-55%)</small>
+                        </div>
+                        <div class="col">
+                            <div class="display-6 text-danger" id="bk-low">0</div>
+                            <small class="text-muted">Low (&lt;40%)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header"><i class="fas fa-star me-2"></i>My Top Skills</div>
+                <div class="card-body" id="my-skills">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-clock me-2"></i>Recent Matches</div>
+                <div class="card-body" id="recent-activity">Loading...</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header"><i class="fas fa-lightbulb me-2"></i>Quick Actions</div>
+                <div class="card-body">
+                    <a href="/resumes" class="btn btn-outline-primary w-100 mb-3 py-3">
+                        <i class="fas fa-upload fa-2x mb-2 d-block"></i>Upload Resume
+                    </a>
+                    <a href="/jobs" class="btn btn-outline-success w-100 mb-3 py-3">
+                        <i class="fas fa-search fa-2x mb-2 d-block"></i>Browse Jobs
+                    </a>
+                    <button class="btn btn-outline-info w-100 py-3" id="auto-match-btn" onclick="autoMatch()">
+                        <i class="fas fa-magic fa-2x mb-2 d-block"></i>Auto-Match Resume
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    (function() {
+        var token = getToken();
+        var user = getUser();
+
+        if (!token || !user) {
+            document.getElementById('auth-check').style.display = 'block';
+            return;
+        }
+
+        document.getElementById('dashboard-content').style.display = 'block';
+        document.getElementById('welcome-msg').textContent =
+            'Welcome back, ' + user.first_name + '! Here are your job match results.';
+
+        loadStats();
+        loadActivity();
+
+        async function loadStats() {
+            try {
+                var response = await fetch('/api/dashboard/stats', { headers: getHeaders() });
+                if (response.ok) {
+                    var stats = await response.json();
+                    document.getElementById('stat-jobs').textContent = stats.total_jobs || 0;
+                    document.getElementById('stat-best').textContent = formatPercent(stats.best_score || 0);
+                    document.getElementById('stat-avg').textContent = formatPercent(stats.average_score || 0);
+                    document.getElementById('stat-resumes').textContent = stats.parsed_resumes || 0;
+
+                    if (stats.breakdown) {
+                        document.getElementById('bk-excellent').textContent = stats.breakdown.excellent || 0;
+                        document.getElementById('bk-good').textContent = stats.breakdown.good || 0;
+                        document.getElementById('bk-average').textContent = stats.breakdown.average || 0;
+                        document.getElementById('bk-low').textContent = stats.breakdown.low || 0;
+                    }
+
+                    var skills = stats.your_skills || [];
+                    if (skills.length) {
+                        var html = skills.map(function(s) {
+                            return '<span class="badge bg-primary me-1 mb-1">' + s.skill + '</span>';
+                        }).join('');
+                        document.getElementById('my-skills').innerHTML = html;
+                    } else {
+                        document.getElementById('my-skills').innerHTML = '<span class="text-muted">Upload a resume to see your skills</span>';
+                    }
+                }
+            } catch (err) {
+                console.error('Stats error:', err);
+            }
+        }
+
+        async function loadActivity() {
+            try {
+                var response = await fetch('/api/dashboard/recent-activity', { headers: getHeaders() });
+                if (response.ok) {
+                    var data = await response.json();
+                    var activity = data.activity || [];
+                    if (!activity.length) {
+                        document.getElementById('recent-activity').innerHTML =
+                            '<span class="text-muted">No matches yet. Upload a resume and auto-match!</span>';
+                        return;
+                    }
+                    var html = activity.slice(0, 8).map(function(a) {
+                        var color = scoreColor(a.score);
+                        return '<div class="d-flex justify-content-between align-items-center border-bottom py-2">' +
+                            '<div><strong>' + a.description + '</strong>' +
+                            '<br><small class="text-muted">' + a.label + '</small></div>' +
+                            '<span class="badge bg-' + color + ' score-badge-sm">' + formatPercent(a.score) + '</span></div>';
+                    }).join('');
+                    document.getElementById('recent-activity').innerHTML = html;
+                }
+            } catch (err) {
+                console.error('Activity error:', err);
+            }
+        }
+    })();
+
+    async function autoMatch() {
+        var btn = document.getElementById('auto-match-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin fa-2x mb-2 d-block"></i>Matching...';
+
+        try {
+            var response = await fetch('/api/matches/auto-match', {
+                method: 'POST',
+                headers: getHeaders()
+            });
+            var data = await response.json();
+            if (response.ok) {
+                alert('Matched against ' + data.total_matched + ' jobs! Refreshing...');
+                window.location.reload();
+            } else {
+                alert(data.error || 'Matching failed');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-magic fa-2x mb-2 d-block"></i>Auto-Match Resume';
+        }
+    }
+</script>
+{% endblock %}

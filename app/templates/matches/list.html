@@ -1,0 +1,163 @@
+{% extends "base.html" % %}
+{% block title %}Matches - Resume Screening System{% endblock %}
+
+{% block content %}
+<div id="auth-check" class="text-center py-5" style="display:none;">
+    <h4>Please <a href="/login">login</a> as a recruiter.</h4>
+</div>
+
+<div id="match-content" style="display:none;">
+    <div class="row mb-4">
+        <div class="col"><h2><i class="fas fa-search me-2"></i>Resume Matching & Shortlisting</h2></div>
+    </div>
+
+    <!-- Job Selector -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <label class="form-label">Select Job</label>
+            <select class="form-select" id="job-select"><option value="">Loading...</option></select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary w-100" onclick="loadAll()"><i class="fas fa-sync me-1"></i>Refresh</button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3" id="matchTabs">
+        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-ranked">Ranked Candidates</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-shortlist">Shortlist & Recommendations</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-skills">Skill Gap Analysis</a></li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Tab 1: Ranked Candidates -->
+        <div class="tab-pane fade show active" id="tab-ranked">
+            <div id="ranked-results"><span class="text-muted">Select a job and click Refresh</span></div>
+        </div>
+
+        <!-- Tab 2: Shortlist -->
+        <div class="tab-pane fade" id="tab-shortlist">
+            <div id="shortlist-results"><span class="text-muted">Select a job and click Refresh</span></div>
+        </div>
+
+        <!-- Tab 3: Skill Gap -->
+        <div class="tab-pane fade" id="tab-skills">
+            <div id="skill-gap-results"><span class="text-muted">Select a job and click Refresh</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var token = getToken();
+    var user = getUser();
+    if (!token || !user || user.role !== 'recruiter') {
+        document.getElementById('auth-check').style.display = 'block';
+        return;
+    }
+    document.getElementById('match-content').style.display = 'block';
+    loadJobs();
+
+    async function loadJobs() {
+        var r = await fetch('/api/jobs', { headers: getHeaders() });
+        if (!r.ok) return;
+        var data = await r.json();
+        var sel = document.getElementById('job-select');
+        sel.innerHTML = '<option value="">Select a job...</option>';
+        (data.jobs || []).forEach(function(j) {
+            sel.innerHTML += '<option value="' + j.id + '">' + j.title + ' - ' + j.company + '</option>';
+        });
+    }
+
+    window.loadAll = async function() {
+        var jobId = document.getElementById('job-select').value;
+        if (!jobId) { alert('Select a job first'); return; }
+        loadRanked(jobId);
+        loadShortlist(jobId);
+        loadSkillGap(jobId);
+    };
+
+    async function loadRanked(jobId) {
+        document.getElementById('ranked-results').innerHTML = '<div class="text-center"><div class="spinner-border"></div></div>';
+        var r = await fetch('/api/matches/job/' + jobId, { headers: getHeaders() });
+        if (!r.ok) { document.getElementById('ranked-results').innerHTML = '<p class="text-danger">Run matching first for this job.</p>'; return; }
+        var data = await r.json();
+        var results = data.results || [];
+        if (!results.length) { document.getElementById('ranked-results').innerHTML = '<p class="text-muted">No matches found. Run matching first.</p>'; return; }
+
+        var html = '<div class="table-responsive"><table class="table table-hover"><thead><tr>' +
+            '<th>#</th><th>Candidate</th><th>Overall</th><th>Skills</th><th>Experience</th><th>Education</th><th>Semantic</th><th>Matched Skills</th><th>Missing Skills</th></tr></thead><tbody>';
+
+        results.forEach(function(res) {
+            var oc = res.scores.overall >= 0.75 ? 'success' : res.scores.overall >= 0.55 ? 'primary' : res.scores.overall >= 0.40 ? 'warning' : 'danger';
+            var matched = (res.matched_skills || []).map(function(s) { return '<span class="badge bg-success me-1">' + s.job_skill + '</span>'; }).join('');
+            var missing = (res.missing_skills || []).map(function(s) { return '<span class="badge bg-danger me-1">' + s + '</span>'; }).join('');
+            html += '<tr><td><strong>' + res.rank + '</strong></td><td>' + res.candidate.name + '<br><small class="text-muted">' + res.candidate.email + '</small></td>' +
+                '<td><span class="badge bg-' + oc + ' score-badge">' + Math.round(res.scores.overall * 100) + '%</span></td>' +
+                '<td>' + Math.round(res.scores.skill * 100) + '%</td><td>' + Math.round(res.scores.experience * 100) + '%</td>' +
+                '<td>' + Math.round(res.scores.education * 100) + '%</td><td>' + Math.round(res.scores.semantic * 100) + '%</td>' +
+                '<td>' + matched + '</td><td>' + missing + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('ranked-results').innerHTML = html;
+    }
+
+    async function loadShortlist(jobId) {
+        document.getElementById('shortlist-results').innerHTML = '<div class="spinner-border"></div>';
+        var r = await fetch('/api/matches/job/' + jobId + '/shortlist', { headers: getHeaders() });
+        if (!r.ok) { document.getElementById('shortlist-results').innerHTML = '<p class="text-danger">Error loading shortlist.</p>'; return; }
+        var data = await r.json();
+        var cats = data.categories;
+        var stats = data.stats;
+
+        var html = '<div class="row mb-4">' +
+            '<div class="col-md-3"><div class="card text-white bg-success"><div class="card-body text-center"><h6>Auto-Shortlist</h6><h2>' + stats.auto_shortlist_count + '</h2><small>(Score >= 75%)</small></div></div></div>' +
+            '<div class="col-md-3"><div class="card text-white bg-primary"><div class="card-body text-center"><h6>Recommended</h6><h2>' + stats.recommended_count + '</h2><small>(Score 55-75%)</small></div></div></div>' +
+            '<div class="col-md-3"><div class="card text-white bg-warning"><div class="card-body text-center"><h6>Borderline</h6><h2>' + stats.borderline_count + '</h2><small>(Score 40-55%)</small></div></div></div>' +
+            '<div class="col-md-3"><div class="card text-white bg-danger"><div class="card-body text-center"><h6>Not Recommended</h6><h2>' + stats.not_recommended_count + '</h2><small>(Score < 40%)</small></div></div></div>' +
+            '</div>';
+
+        ['auto_shortlist', 'recommended', 'borderline', 'not_recommended'].forEach(function(cat) {
+            var entries = cats[cat] || [];
+            if (!entries.length) return;
+            var label = cat.replace('_', ' ').toUpperCase();
+            var bclass = cat === 'auto_shortlist' ? 'success' : cat === 'recommended' ? 'primary' : cat === 'borderline' ? 'warning' : 'danger';
+            html += '<div class="card mb-3"><div class="card-header bg-' + bclass + ' text-white"><strong>' + label + ' (' + entries.length + ')</strong></div><div class="card-body">';
+            entries.forEach(function(e) {
+                html += '<div class="d-flex justify-content-between align-items-center border-bottom py-2">' +
+                    '<div><strong>' + e.candidate_name + '</strong> <small class="text-muted">' + e.candidate_email + '</small>' +
+                    '<br><small>' + e.recommendation + '</small></div>' +
+                    '<span class="badge bg-' + bclass + ' score-badge">' + Math.round(e.overall_score * 100) + '%</span></div>';
+            });
+            html += '</div></div>';
+        });
+
+        document.getElementById('shortlist-results').innerHTML = html;
+    }
+
+    async function loadSkillGap(jobId) {
+        document.getElementById('skill-gap-results').innerHTML = '<div class="spinner-border"></div>';
+        var r = await fetch('/api/matches/job/' + jobId + '/skill-gap', { headers: getHeaders() });
+        if (!r.ok) { document.getElementById('skill-gap-results').innerHTML = '<p class="text-danger">Error.</p>'; return; }
+        var data = await r.json();
+
+        var html = '<div class="row"><div class="col-md-6"><div class="card mb-3"><div class="card-header"><i class="fas fa-check-circle text-success me-2"></i>Skill Coverage (matched by candidates)</div><div class="card-body">';
+        (data.skill_coverage || []).forEach(function(s) {
+            html += '<div class="d-flex justify-content-between mb-2"><span>' + s.skill + '</span><span><div class="progress" style="width:150px;height:20px"><div class="progress-bar bg-success" style="width:' + s.coverage + '%">' + s.coverage + '%</div></div></span></div>';
+        });
+        html += '</div></div></div>';
+
+        html += '<div class="col-md-6"><div class="card mb-3"><div class="card-header"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Skill Gaps (missing from candidates)</div><div class="card-body">';
+        (data.skill_gaps || []).forEach(function(s) {
+            html += '<div class="d-flex justify-content-between mb-2"><span>' + s.skill + '</span><span><div class="progress" style="width:150px;height:20px"><div class="progress-bar bg-danger" style="width:' + s.gap_percentage + '%">' + s.gap_percentage + '%</div></div></span></div>';
+        });
+        html += '</div></div></div></div>';
+        html += '<p class="text-muted">Total candidates evaluated: ' + data.total_candidates + '</p>';
+
+        document.getElementById('skill-gap-results').innerHTML = html;
+    }
+})();
+</script>
+{% endblock %}
