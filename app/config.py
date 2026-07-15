@@ -9,19 +9,19 @@ class Config:
     """Base configuration."""
     SECRET_KEY = os.environ.get("SECRET_KEY", "resume-screening-secret-key-change-in-production")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
+
     # JWT Configuration
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "jwt-secret-key-change-in-production")
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=2)
-    
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
+
     # File Upload Configuration
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
     ALLOWED_EXTENSIONS = {"pdf", "docx", "txt"}
-    
+
     # NLP Configuration
     SPACY_MODEL = "en_core_web_sm"
-    
+
     # Matching Weights
     MATCH_WEIGHTS = {
         "skill": 0.40,
@@ -32,7 +32,7 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    """Development configuration."""
+    """Development configuration - uses MySQL locally."""
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL",
@@ -41,9 +41,12 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production configuration."""
+    """Production configuration - uses SQLite for deployment."""
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL",
+        "sqlite:///jobmatchfinder.db"
+    )
 
 
 config_by_name = {

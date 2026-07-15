@@ -1,21 +1,24 @@
+import os
 from flask import Flask
 from app.config import config_by_name
 from app.extensions import db, migrate, jwt, limiter, cors
 
 
-def create_app(config_name: str = "development") -> Flask:
+def create_app(config_name: str = None) -> Flask:
     """Application factory pattern."""
+    if config_name is None:
+        config_name = os.environ.get("FLASK_CONFIG", "development")
+
     app = Flask(__name__)
     app.config.from_object(config_by_name[config_name])
 
-    # Initialize extensions
     register_extensions(app)
-
-    # Register blueprints
     register_blueprints(app)
-
-    # Register error handlers
     register_error_handlers(app)
+
+    with app.app_context():
+        db.create_all()
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     return app
 
@@ -38,14 +41,11 @@ def register_blueprints(app: Flask):
     from app.routes.dashboard import dashboard_bp
     from app.routes.pages import pages_bp
 
-    # API blueprints
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(resume_bp, url_prefix="/api/resumes")
     app.register_blueprint(job_bp, url_prefix="/api/jobs")
     app.register_blueprint(match_bp, url_prefix="/api/matches")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
-
-    # Pages blueprint (no prefix for root routes)
     app.register_blueprint(pages_bp)
 
 

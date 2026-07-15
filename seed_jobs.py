@@ -1,5 +1,4 @@
 """Seed script - creates sample jobs in the database."""
-from app import create_app
 from app.extensions import db
 from app.models.job import Job, JobSkill
 from app.models.skill import Skill
@@ -98,45 +97,38 @@ SAMPLE_JOBS = [
 
 
 def seed_jobs():
-    """Create sample jobs if none exist."""
-    app = create_app()
-    with app.app_context():
-        existing = Job.query.count()
-        if existing > 0:
-            print(f"Database already has {existing} jobs. Skipping seed.")
-            return
+    """Create sample jobs if none exist. Must be called within app context."""
+    existing = Job.query.count()
+    if existing > 0:
+        return
 
-        for job_data in SAMPLE_JOBS:
-            job = Job(
-                recruiter_id=0,
-                title=job_data["title"],
-                company=job_data["company"],
-                description=job_data["description"],
-                location=job_data.get("location"),
-                job_type=job_data.get("job_type", "full-time"),
-                experience_min_years=job_data.get("experience_min_years"),
-                experience_max_years=job_data.get("experience_max_years"),
-                education_level=job_data.get("education_level"),
-                status=JobStatus.ACTIVE,
-            )
-            db.session.add(job)
-            db.session.flush()
+    for job_data in SAMPLE_JOBS:
+        job = Job(
+            recruiter_id=0,
+            title=job_data["title"],
+            company=job_data["company"],
+            description=job_data["description"],
+            location=job_data.get("location"),
+            job_type=job_data.get("job_type", "full-time"),
+            experience_min_years=job_data.get("experience_min_years"),
+            experience_max_years=job_data.get("experience_max_years"),
+            education_level=job_data.get("education_level"),
+            status=JobStatus.ACTIVE,
+        )
+        db.session.add(job)
+        db.session.flush()
 
-            for skill_name in job_data["skills"]:
-                skill = Skill.query.filter(
-                    db.func.lower(Skill.canonical_name) == skill_name.lower()
-                ).first()
-                if not skill:
-                    skill = Skill(name=skill_name, canonical_name=skill_name.lower(), category="general")
-                    db.session.add(skill)
-                    db.session.flush()
+        for skill_name in job_data["skills"]:
+            skill = Skill.query.filter(
+                db.func.lower(Skill.canonical_name) == skill_name.lower()
+            ).first()
+            if not skill:
+                skill = Skill(name=skill_name, canonical_name=skill_name.lower(), category="general")
+                db.session.add(skill)
+                db.session.flush()
 
-                job_skill = JobSkill(job_id=job.id, skill_id=skill.id, is_required=True)
-                db.session.add(job_skill)
+            job_skill = JobSkill(job_id=job.id, skill_id=skill.id, is_required=True)
+            db.session.add(job_skill)
 
-        db.session.commit()
-        print(f"Seeded {len(SAMPLE_JOBS)} jobs successfully!")
-
-
-if __name__ == "__main__":
-    seed_jobs()
+    db.session.commit()
+    print(f"Seeded {len(SAMPLE_JOBS)} jobs successfully!")
