@@ -64,3 +64,6 @@ def register_error_handlers(app: Flask):
     def internal_error(error):
         db.session.rollback()
         return {"error": "Internal server error", "code": "INTERNAL_ERROR"}, 500
+
+
+app = create_app()
